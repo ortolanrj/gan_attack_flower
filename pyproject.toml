@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "gan_attack_flower"
+version = "1.0.0"
+description = "Reprodução do artigo Hitaj et al. (CCS'17) 'Deep Models Under the GAN' utilizando Flower 1.25.x + PyTorch + MNIST."
+license = "Apache-2.0"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "flwr[simulation]>=1.25.0,<1.26.0",
+    "flwr-datasets[vision]>=0.5.0",
+    "torch>=2.2.0",
+    "torchvision>=0.17.0",
+    "numpy>=1.26.0",
+    "matplotlib>=3.8.0",
+    "pillow>=10.0.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["gan_attack_flower"]
+
+[tool.flwr.app]
+publisher = "raphael-ortolan"
+
+[tool.flwr.app.components]
+serverapp = "gan_attack_flower.server_app:app"
+clientapp = "gan_attack_flower.client_app:app"
+
+[tool.flwr.app.config]
+num-server-rounds = 80
+local-epochs = 1
+batch-size = 64
+learning-rate = 0.001
+lr-decay = 0.0000001
+
+target-class = 4
+
+gan-latent-dim = 100
+gan-steps-per-round = 100
+gan-batch-size = 64
+gan-lr = 0.02
+
+num-injected-samples = 64
+
+save-every = 5
+output-dir = "outputs"
+
+[tool.flwr.federations]
+default = "local-simulation"
+
+[tool.flwr.federations.local-simulation]
+options.num-supernodes = 2
