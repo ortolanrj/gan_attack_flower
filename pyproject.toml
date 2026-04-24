@@ -30,7 +30,7 @@ serverapp = "gan_attack_flower.server_app:app"
 clientapp = "gan_attack_flower.client_app:app"
 
 [tool.flwr.app.config]
-num-server-rounds = 80
+num-server-rounds = 160
 local-epochs = 1
 batch-size = 64
 learning-rate = 0.001

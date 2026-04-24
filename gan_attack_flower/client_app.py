@@ -9,7 +9,7 @@ from flwr.client import ClientApp, NumPyClient
 from flwr.common import ArrayRecord, ConfigRecord, Context
 from flwr.common.logger import log
 
-from .attack import generate_samples, save_grid, train_generator
+from .attack import generate_samples, save_comparison, save_grid, train_generator
 from .task import (
     CNNClassifier,
     FAKE_CLASS_INDEX,
@@ -104,13 +104,14 @@ class AdversaryClient(NumPyClient):
         gan_batch_size: int,
         gan_lr: float,
         num_injected_samples: int,
+        num_server_rounds: int,
         save_every: int,
         output_dir: str,
         device: torch.device,
     ) -> None:
         self.context = context
         self.device = device
-        self.target_class = target_class
+        self.target_class = target_class  # a class the adversary does NOT own
         self.local_epochs = local_epochs
         self.lr = lr
         self.lr_decay = lr_decay
@@ -119,6 +120,7 @@ class AdversaryClient(NumPyClient):
         self.gan_batch_size = gan_batch_size
         self.gan_lr = gan_lr
         self.num_injected_samples = num_injected_samples
+        self.num_server_rounds = num_server_rounds
         self.save_every = save_every
         self.output_dir = output_dir
 
@@ -180,7 +182,22 @@ class AdversaryClient(NumPyClient):
                 base = Path(__file__).resolve().parent.parent / base
             out_path = base / "reconstructions" / f"round_{round_counter:04d}.png"
             save_grid(samples, out_path, nrow=8)
-            log(INFO, "[adversary] saved reconstruction grid to %s", out_path)
+            log(INFO, "[atacante] salva grid de reconstrução em %s", out_path)
+
+        if round_counter == self.num_server_rounds:
+            base = Path(self.output_dir)
+            if not base.is_absolute():
+                base = Path(__file__).resolve().parent.parent / base
+            cmp_path = base / "comparacao_original_vs_reconstrucao.png"
+            save_comparison(
+                target_class=self.target_class,
+                generator=generator,
+                latent_dim=self.latent_dim,
+                device=self.device,
+                path=cmp_path,
+                num_samples=10,
+            )
+            log(INFO, "[atacante] comparação final salva em %s", cmp_path)
 
         _save_generator(self.context, generator, round_counter)
 
@@ -212,10 +229,10 @@ def client_fn(context: Context):
 
     partition_id = int(nc["partition-id"])
     num_partitions = int(nc["num-partitions"])
-    assert num_partitions == 2, "This reproduction uses exactly 2 participants."
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
+    # Convenção: partition 0 = vítima, partition 1 = atacante.
     if partition_id == 0:
         return VictimClient(
             batch_size=batch_size,
@@ -237,6 +254,7 @@ def client_fn(context: Context):
         gan_batch_size=int(rc["gan-batch-size"]),
         gan_lr=float(rc["gan-lr"]),
         num_injected_samples=int(rc["num-injected-samples"]),
+        num_server_rounds=int(rc["num-server-rounds"]),
         save_every=int(rc["save-every"]),
         output_dir=str(rc["output-dir"]),
         device=device,
